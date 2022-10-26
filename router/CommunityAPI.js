@@ -19,7 +19,7 @@ const upload = multer({
     }),
 });
 
-router.post('/create_context', (req, res) => {
+router.post('/create_context', upload.array('imageFile'), (req, res) => {
     const title = req.body.title;
     const contact = req.body.contact;
     const token = req.cookies.user_auth
@@ -39,7 +39,8 @@ router.post('/create_context', (req, res) => {
                 if (err) throw err;
                 res.json({
                     'title': title,
-                    'context' : contact
+                    'context' : contact,
+		    success: true
                 })
             })
         }
@@ -69,7 +70,8 @@ router.post('/create_context', (req, res) => {
                                 else {
                                     res.json({
                                         'title': title,
-                                        'context' : contact
+                                        'context' : contact,
+					 success: true
                                     })
                                 }
                             })
@@ -85,9 +87,10 @@ router.post('/create_context', (req, res) => {
 router.get('/Thumbnail_upload', upload.single('imageFile'), (req, res) => { 
     const thumbnail = '대지_1_사본3x-100.jpg'
     const id = req.body.boardId;
+	console.log(id)
     if (!req.file) {
         console.log('이미지 안들어옴')
-        conn.query(`update blogssmBoard set image = 'http://localhost:1000/image/${thumbnail} where tid=${id}'`, (err, result) => {
+        conn.query(`update blogssmBoard set image = 'http://13.125.225.199:8007/image/${thumbnail}' where tid=${id}`, (err, result) => {
             if(err) return res.send(err);
             else {
                 res.json({
@@ -99,7 +102,7 @@ router.get('/Thumbnail_upload', upload.single('imageFile'), (req, res) => {
     } else {
         console.log('이미지 들어옴')
         const image = req.file.filename
-        conn.query(`update blogssmBoard set image = 'http://localhost:1000/image/${image} where tid=${id}'`, (err, result) => {
+        conn.query(`update blogssmBoard set image = 'http://13.125.225.199:8007/image/${image}' where tid=${id}`, (err, result) => {
             if (err) return res.send(err);
             else {
                 res.json({
@@ -123,7 +126,7 @@ router.get('/get_contact', (req, res) => {
         const heart = result[0].heart;
         const userName = result[0].userName;
         const upload_date = result[0].date;
-        conn.query(`select * from imagetable where contactId = ${id}`, (err, result) => {
+        conn.query(`select * from imageTable where contactId = ${id}`, (err, result) => {
             if (err) throw err;
             console.log(result);
             let arr = new Array();
@@ -138,7 +141,8 @@ router.get('/get_contact', (req, res) => {
                     'heart': heart,
                     'userName': userName,
                     'upload_date': upload_date,
-                    'thumbnail' : thumbnail
+                    'thumbnail' : thumbnail,
+		    success: true
                 })
             } else {
                 res.json({
@@ -149,7 +153,8 @@ router.get('/get_contact', (req, res) => {
                     'userName': userName,
                     'upload_date': upload_date,
                     'thumbnail': thumbnail,
-                    'image_path': arr
+                    'image_path': arr,
+	             success: true
                 })
             }
         })
@@ -173,21 +178,29 @@ router.get('/comment_upload', (req, res) => {
         if (err) throw err;
         const name = results[0].userName
         const id = results[0].tid
-        conn.query(`insert into commenttable(contactId, uid, userName, text) values(
+        conn.query(`insert into commenttable(contactId, uid, userName, text, orderNum, level) values(
             ${contactId},
             ${id},
             '${name}',
-            '${text}'
+            '${text}',
+	    0,
+	    0
             )`, (err, result) => {
                 if (err) throw err;
-                conn.query(`select MAX(id) mid, MAX(groupNum) + 1 mgroupNum from commenttable where contactId = ${contactId}`, (err, result) => {
+                conn.query(`select id, MAX(groupNum) + 1 mgroupNum from commenttable where contactId = ${contactId}`, (err, result) => {
                     if(err) throw err;
-                    const cid = result[0].mid;
+                    const cid = result[0].id;
+			console.log(cid)
                     const groupNum = result[0].mgroupNum;
-                    conn.query(`update commenttable set groupNum = ${groupNum} where id = ${cid}`, (err, result) => {
+                    conn.query(`update commenttable set groupNum = ${cid} where id = ${cid}`, (err, result) => {
                         if(err) throw err;
                         res.json({
-                            'text': text
+                            'text': text,
+			    'id' : cid,
+			    'groupNum' : cid,
+			    'orderNum' : 0,
+			    'level' : 0,
+			    success: true
                         })
                     })
                 })
@@ -221,7 +234,9 @@ router.get('/comments', (req, res) => {
                         if(err) res.send(err);
                         res.json({
                             "text" : text,
-                            "level" : level
+                            "level" : level,
+			    "groupNum" : commentId,
+			    success : true
                         })
                      })
                 })
@@ -229,32 +244,76 @@ router.get('/comments', (req, res) => {
         })
 })
 
-router.post("/getBlogLink", function (req, res, body) {
-    let urlArr = new Array();
-    const userName = req.body.userName
-    let access_token =
-        "40062d2ac059d46fc83f632f28e13157_d00a4dae053eac09af364356fe4fd77e";
-    let url = `https://www.tistory.com/apis/post/list?access_token=${access_token}&output=JSON&blogName=${userName}&page=1`;
-    let options = {
-        url,
-        method: "get",
-        timeout: 1000,
-    };
+router.get('/All_comment', (req, res)=> {
+	const id = req.query.boardId;
+	conn.query(`select * from commenttable where contactId = ${id}`, (err, result) => {
+		if(err) { 
+			res.json({
+			success: false,
+			'error': err})
+		}else {
+			res.json({
+				success: true,
+				'data': result
+			})
+		}
+	})
+})
 
-    request(options, function (error, response, body) {
-        try {
+let getArr = (userName) => {
+    let urlArr = new Array()
+    }
+
+
+router.get("/getBlogLink", async (req, res) => {
+    let arr = new Array();
+    let count = 0;
+    conn.query(`select link from userTable`, async (err, result) => {
+	if(err) res.json({'message' : errr, success: false})
+	for(let i = 0; i < result.length; i++) {
+	 let link = result[i].link
+	 if(link.substring(8).split('.')[1] == 'tistory') {
+		 console.log('hi')
+	 	let userName = link.substring(8).split('.')[0];
+		let access_token =
+               "40062d2ac059d46fc83f632f28e13157_d00a4dae053eac09af364356fe4fd77e";
+               let url = `https://www.tistory.com/apis/post/list?access_token=${access_token}&output=JSON&blogName=${userName}&page=1`;
+               let options = {
+                 url,
+                 method: "get",
+                 timeout: 1000,
+               };
+	   await request(options, (error, response, body) => {
             var $ = cheerio.load(body);
             $('post').each((key, val) => {
+		let date = $(val).children("date").text()
+		let title = $(val).children("title").text()
                 let url = $(val).children("postUrl").text();
-                console.log(url);
-                urlArr.push(url);
-                console.log(urlArr)
-            })
-            res.send(urlArr);
-        } catch (error) {
-            res.send(error);
-        }
-    });
+ 		arr.push({blogName:'tistory', title: title, url: [url], date: date})
+                 })
+		 count = count + 1 
+		 console.log(count)
+		 if(count == result.length) { // 마지막
+			 console.log('마지막')
+			 res.json({data : arr, success: true})
+		}
+       	    })
+	   } else { console.log('티스토리 아님'); } 
+	 }
+        })
 });
+
+
+router.get('/All_board', (req, res) => {
+	conn.query('select * from blogssmBoard', (err, result) => {
+		if(err) res.json({'message' : err, success: false})
+		else {
+			res.json({
+				success: true,
+				data: result
+			})
+		}
+	})
+})
 
 module.exports = router;
