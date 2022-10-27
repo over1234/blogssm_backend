@@ -2,7 +2,7 @@ var fs = require('fs');    			// 파일시스템 모듈
 var express = require('express');   // express 모듈
 var app = express();                // express 객체 생성
 
-let port = 1000;
+let port = 8007;
 
 app.listen(port, () => {       // 서버 가동 
     console.log('Express server listening on port');
