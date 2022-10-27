@@ -22,27 +22,30 @@ const upload = multer({
 router.post('/create_context', upload.array('imageFile'), (req, res) => {
     const title = req.body.title;
     const contact = req.body.contact;
-    const token = req.cookies.user_auth
+    const uid = req.body.uid
+    const userName = req.body.userName
     const date = new Date();
     const today = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
-    conn.query(`select tid, userName from userTable where token = '${token}'`, (err, results) => {
-        if (err) throw err;
-        const name = results[0].userName
-        const id = results[0].tid
-        if (req.files.length === 0) { 
+        if (req.files.length === 0) {
+	    console.log('확인')	
             conn.query(`insert into blogssmBoard(uid, title, context, userName, date) values(
-                    ${id},
+                    ${uid},
                     '${title}',
                     '${contact}',
-                    '${name}',
+                    '${userName}',
                     '${today}')`, (err, result) => {
-                if (err) throw err;
-                res.json({
-                    'title': title,
-                    'context' : contact,
-		    success: true
-                })
-            })
+                if (err) res.send(err)
+		conn.query(`select max(tid) as tid from blogssmBoard where uid = ${uid}`, (err, result)=>{
+			if(err) res.send(err)
+                       res.json({
+			'boardId' : result[0].tid,       
+                       'title': title,
+                       'context' : contact,
+		       success: true
+                       })
+
+		})	    
+              })
         }
         else { 
             let urlArr = Array()
@@ -50,14 +53,14 @@ router.post('/create_context', upload.array('imageFile'), (req, res) => {
                 urlArr.push(`static/image/${req.files[i].filename}`);
             }
             conn.query(`insert into blogssmBoard(uid, title, context, userName, date) values(
-                    ${id},
+                    ${uid},
                     '${title}',
                     '${contact}',
                     '${name}',
                     '${today}')`, (err, result) => {
                 if (err) throw err;
                 else { // 비어있지 않음 => 이미지 저장 해야함.
-                    conn.query(`select MAX(tid) as id from blogssmBoard where tid`, (err, result) => {
+                    conn.query(`select MAX(tid) as id from blogssmBoard where uid = ${uid}`, (err, result) => {
                         const id = result[0].id;
                         let query = Array();
                         for (let i = 0; i < urlArr.length; i++) {
@@ -68,20 +71,24 @@ router.post('/create_context', upload.array('imageFile'), (req, res) => {
                             conn.query('insert into imageTable(contactId, path) values ?', [query], (err, result) => {
                                 if (err) throw err;
                                 else {
-                                    res.json({
+				    conn.query(`select max(tid) as tid from bolgssmBoard where uid = ${uid}`, (err, result)=>{
+					if(err) res.send(err)
+					res.json({
+					'boardId' : result[0].tid,
                                         'title': title,
                                         'context' : contact,
 					 success: true
-                                    })
-                                }
+                                        })
+    
+				    })	
+                                 }
                             })
                         }
                     })
 
                 }
-            })
-        }
-    })
+           })
+	}
 })
 
 router.get('/Thumbnail_upload', upload.single('imageFile'), (req, res) => { 
@@ -268,12 +275,14 @@ let getArr = (userName) => {
 router.get("/getBlogLink", async (req, res) => {
     let arr = new Array();
     let count = 0;
+    let userNameCount = 0
     conn.query(`select link from userTable`, async (err, result) => {
 	if(err) res.json({'message' : errr, success: false})
 	for(let i = 0; i < result.length; i++) {
 	 let link = result[i].link
 	 if(link.substring(8).split('.')[1] == 'tistory') {
-		 console.log('hi')
+		 userNameCount = userNameCount + 1;
+		 console.log(userNameCount)
 	 	let userName = link.substring(8).split('.')[0];
 		let access_token =
                "40062d2ac059d46fc83f632f28e13157_d00a4dae053eac09af364356fe4fd77e";
@@ -293,7 +302,7 @@ router.get("/getBlogLink", async (req, res) => {
                  })
 		 count = count + 1 
 		 console.log(count)
-		 if(count == result.length) { // 마지막
+		 if(count == userNameCount) { // 마지막
 			 console.log('마지막')
 			 res.json({data : arr, success: true})
 		}

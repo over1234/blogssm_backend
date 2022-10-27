@@ -46,15 +46,22 @@ router.post('/register', (req, res) => {
         			if (err) {
             			res.json({ 'massage': err, sucess: false });
         			} else {
-            			res.json({
-                		'name' : name,
-                		'uid': uid,
-                		'password': pwd,
-                		'email': email,
-                		'link' : link,
-				success: true
-            			});
-        		}
+				  conn.query(`select * from userTable where email = '${email}'`, (err, result)=>{
+					if(err) res.json({'message': err, success:false})
+					 else {
+						res.json({
+							'uid' : result[0].tid,
+							'name' : name,
+							'userId' : uid,
+							'password' : pwd,
+							'email' : email,
+							'link' : link,
+							success: true
+						})
+					 }
+				})
+
+				}
     		    });
 
 			}
@@ -82,14 +89,15 @@ router.post('/signin', (req, res) => {
         if(result.length === 0) {
             res.json({success: false, massage: "해당하는 이메일에 등록되는 계정 없음. 옳은 이메일을 입력해주세요."})
         } else {
-            conn.query(`select userId, password from userTable where email ='${email}'`, (err, result) => {
+            conn.query(`select tid, userId, password from userTable where email ='${email}'`, (err, result) => {
                 if (err) {
                     return res.json({ 'massage': err });
                 }
                 if (result.length === 1) { // 매칭되는 userid가 있을떄
+		    const tid = result[0].tid
                     const encodePwd = result[0].password
 		    const userId = result[0].userId
-		    console.log(encodePwd, userId);
+		    console.log(encodePwd, userId, uid);
 		    if(userId === uid) {
                     bcrypt.compare(pwd, encodePwd, (err, same) => {
                         if (err) {
@@ -104,6 +112,7 @@ router.post('/signin', (req, res) => {
                                     return res.cookie("user_auth", token)
                                         .json({
                                             success: true,
+					    'uid' : tid,
                                             userName: userName,
                                             id: req.body.id,
                                             pwd: req.body.pwd,
